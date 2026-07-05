@@ -1,0 +1,15 @@
+.env
+.DS_Store
+
+# Local runtime data and private sync state
+data/*.sqlite3
+data/*.log
+data/page_snapshots/
+
+# Generated exports/reports can be regenerated locally
+exports/
+reports/
+
+# Python cache
+__pycache__/
+*.py[cod]
