@@ -4,15 +4,17 @@
 1. RSS/RSSHub 采集原始信息；
 2. rule_engine.py 逐条评分和生成洞察；
 3. event_merger.py 多源事件归并；
-4. report_generator.py 生成日报 Markdown；
-5. 可选同步到 Notion；
-6. 输出本次运行摘要。
+4. quality_filter.py 过滤低价值噪音；
+5. report_generator.py 生成日报 Markdown；
+6. 可选同步到 Notion；
+7. 输出本次运行摘要。
 
 MVP 设计原则：
 - 先跑通闭环，不依赖数据库、不依赖大语言模型、不依赖第三方包。
 - 每一步都有中间文件，方便调试和复盘。
 - 失败源不会中断整个 pipeline。
 - Notion 同步是可选项，不影响本地文件生成。
+- RSS 可以多抓，但 Notion 必须少进；Notion 是资产库，不是资讯垃圾桶。
 
 Run:
     cd 自动化情报收集系统
@@ -38,10 +40,11 @@ import os
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from event_merger import EventMerger
 from notion_exporter import NotionClient, export_events_to_database, export_report_to_page
+from quality_filter import QualityFilter
 from report_generator import generate_report
 from rss_collector import CollectedItem, RSSCollector, write_jsonl as write_raw_jsonl
 from rule_engine import IntelligenceRuleEngine, result_to_dict
@@ -50,7 +53,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class IntelligencePipeline:
-    """One-command pipeline for collection, evaluation, merge, report and optional Notion export."""
+    """One-command pipeline for collection, evaluation, merge, quality filtering, report and optional Notion export."""
 
     def __init__(
         self,
@@ -64,6 +67,7 @@ class IntelligencePipeline:
         notion_parent_page_id: Optional[str] = None,
         notion_token_env: str = "NOTION_TOKEN",
         notion_event_limit: Optional[int] = None,
+        disable_quality_filter: bool = False,
     ) -> None:
         self.date_text = self._resolve_date(date_text)
         self.rsshub_base = rsshub_base
@@ -75,10 +79,15 @@ class IntelligencePipeline:
         self.notion_parent_page_id = notion_parent_page_id
         self.notion_token_env = notion_token_env
         self.notion_event_limit = notion_event_limit
+        self.disable_quality_filter = disable_quality_filter
+        self.quality_filter = QualityFilter()
 
         self.raw_path = PROJECT_ROOT / f"data/raw/rss_items_{self.date_text}.jsonl"
         self.evaluated_path = PROJECT_ROOT / f"data/processed/evaluated_items_{self.date_text}.jsonl"
-        self.merged_path = PROJECT_ROOT / f"data/processed/merged_events_{self.date_text}.jsonl"
+        self.merged_all_path = PROJECT_ROOT / f"data/processed/merged_events_all_{self.date_text}.jsonl"
+        self.merged_path = PROJECT_ROOT / f"data/processed/merged_events_filtered_{self.date_text}.jsonl"
+        self.notion_events_path = PROJECT_ROOT / f"data/processed/notion_events_{self.date_text}.jsonl"
+        self.dropped_path = PROJECT_ROOT / f"data/processed/dropped_events_{self.date_text}.jsonl"
         self.report_path = PROJECT_ROOT / f"data/reports/daily_{self.date_text}.md"
         self.summary_path = PROJECT_ROOT / f"data/reports/pipeline_summary_{self.date_text}.json"
 
@@ -90,10 +99,11 @@ class IntelligencePipeline:
     def run(self) -> Dict[str, Any]:
         raw_items = self.collect()
         evaluated_items = self.evaluate(raw_items)
-        merged_events = self.merge(evaluated_items)
-        self.generate_daily_report(merged_events)
+        merged_all = self.merge(evaluated_items)
+        report_events, notion_events, dropped_events = self.apply_quality_filters(merged_all)
+        self.generate_daily_report(report_events)
         notion_result = self.export_to_notion_if_enabled()
-        summary = self.build_summary(raw_items, evaluated_items, merged_events, notion_result)
+        summary = self.build_summary(raw_items, evaluated_items, merged_all, report_events, notion_events, dropped_events, notion_result)
         self.write_summary(summary)
         return summary
 
@@ -120,12 +130,29 @@ class IntelligencePipeline:
     def merge(self, evaluated_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         merger = EventMerger()
         merged = [asdict(event) for event in merger.merge(evaluated_items)]
-        self._write_jsonl(merged, self.merged_path)
+        self._write_jsonl(merged, self.merged_all_path)
         return merged
 
-    def generate_daily_report(self, merged_events: List[Dict[str, Any]]) -> str:
+    def apply_quality_filters(self, merged_all: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        if self.disable_quality_filter:
+            self._write_jsonl(merged_all, self.merged_path)
+            self._write_jsonl(merged_all, self.notion_events_path)
+            self._write_jsonl([], self.dropped_path)
+            return merged_all, merged_all, []
+
+        report_events = self.quality_filter.filter_for_report(merged_all)
+        notion_events, dropped_events = self.quality_filter.filter_for_notion(
+            report_events,
+            limit=self.notion_event_limit,
+        )
+        self._write_jsonl(report_events, self.merged_path)
+        self._write_jsonl(notion_events, self.notion_events_path)
+        self._write_jsonl(dropped_events, self.dropped_path)
+        return report_events, notion_events, dropped_events
+
+    def generate_daily_report(self, report_events: List[Dict[str, Any]]) -> str:
         report = generate_report(
-            merged_events,
+            report_events,
             merged=True,
             date_text=self.date_text,
             top_n=self.top_n,
@@ -154,7 +181,7 @@ class IntelligencePipeline:
             event_page_ids = export_events_to_database(
                 client,
                 self.notion_database_id,
-                self.merged_path,
+                self.notion_events_path,
                 limit=self.notion_event_limit,
             )
             result["event_pages"] = event_page_ids
@@ -174,11 +201,14 @@ class IntelligencePipeline:
         self,
         raw_items: List[CollectedItem],
         evaluated_items: List[Dict[str, Any]],
-        merged_events: List[Dict[str, Any]],
+        merged_all: List[Dict[str, Any]],
+        report_events: List[Dict[str, Any]],
+        notion_events: List[Dict[str, Any]],
+        dropped_events: List[Dict[str, Any]],
         notion_result: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         top_events = sorted(
-            merged_events,
+            report_events,
             key=lambda x: float(x.get("max_final_score", x.get("average_final_score", 0)) or 0),
             reverse=True,
         )[: self.top_n]
@@ -187,14 +217,20 @@ class IntelligencePipeline:
             "paths": {
                 "raw": str(self.raw_path.relative_to(PROJECT_ROOT)),
                 "evaluated": str(self.evaluated_path.relative_to(PROJECT_ROOT)),
-                "merged": str(self.merged_path.relative_to(PROJECT_ROOT)),
+                "merged_all": str(self.merged_all_path.relative_to(PROJECT_ROOT)),
+                "merged_filtered_for_report": str(self.merged_path.relative_to(PROJECT_ROOT)),
+                "notion_events": str(self.notion_events_path.relative_to(PROJECT_ROOT)),
+                "dropped_events": str(self.dropped_path.relative_to(PROJECT_ROOT)),
                 "report": str(self.report_path.relative_to(PROJECT_ROOT)),
                 "summary": str(self.summary_path.relative_to(PROJECT_ROOT)),
             },
             "counts": {
                 "raw_items": len(raw_items),
                 "evaluated_items": len(evaluated_items),
-                "merged_events": len(merged_events),
+                "merged_events_all": len(merged_all),
+                "report_events_after_filter": len(report_events),
+                "notion_events_after_filter": len(notion_events),
+                "dropped_events": len(dropped_events),
             },
             "top_events": [
                 {
@@ -204,11 +240,12 @@ class IntelligencePipeline:
                     "type": event.get("primary_event_type"),
                     "sources": event.get("sources", [])[:5],
                     "actions": event.get("recommended_actions", []),
+                    "quality_filter": event.get("quality_filter", {}),
                 }
                 for event in top_events
             ],
             "notion": notion_result or {"enabled": False},
-            "note": "RSS 是原材料；日报中的商业洞察、合规预警、竞品信号和赛道机会才是可复用资产。",
+            "note": "RSS 可以多抓；Notion 只保留能形成判断、预警、竞品信号、机会清单或面试案例的内容。",
         }
 
     def write_summary(self, summary: Dict[str, Any]) -> None:
@@ -230,7 +267,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-sources", type=int, default=None, help="最多采集多少个源，调试用")
     parser.add_argument("--skip-low-stability", action="store_true", help="跳过低稳定 RSSHub/社媒/招聘源")
     parser.add_argument("--top-n", type=int, default=5, help="日报 Top 信号数量")
-    parser.add_argument("--notion-database-id", default=None, help="可选：把合并事件同步到 Notion 数据库")
+    parser.add_argument("--disable-quality-filter", action="store_true", help="调试用：关闭质量过滤，保留全量事件")
+    parser.add_argument("--notion-database-id", default=None, help="可选：把高质量合并事件同步到 Notion 数据库")
     parser.add_argument("--notion-parent-page-id", default=None, help="可选：把日报 Markdown 同步为该 Notion 页面下的子页面")
     parser.add_argument("--notion-token-env", default="NOTION_TOKEN", help="Notion token 环境变量名")
     parser.add_argument("--notion-event-limit", type=int, default=None, help="可选：最多同步多少条合并事件到 Notion")
@@ -250,6 +288,7 @@ def main() -> None:
         notion_parent_page_id=args.notion_parent_page_id,
         notion_token_env=args.notion_token_env,
         notion_event_limit=args.notion_event_limit,
+        disable_quality_filter=args.disable_quality_filter,
     )
     summary = pipeline.run()
     print(json.dumps(summary, ensure_ascii=False, indent=2))
