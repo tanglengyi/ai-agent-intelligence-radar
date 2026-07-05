@@ -1,0 +1,27 @@
+ID,模块,需求名称,用户故事,优先级,状态,验收标准,对应产物
+R001,信息源管理,建立六类信息源配置,"作为用户，我要按政策、产品、Infra、安全、商业化、招聘分频道管理来源",P0,已完成,"config/sources.json 中有完整频道和来源字段",config/sources.json
+R002,信息源管理,增加 RSSHub 路由,"作为用户，我要把公众号、GitHub Release、部分平台公告转 RSS",P1,已完成,"至少新增 20 个 RSSHub/平台公告来源并能容错抓取",config/sources.json
+R003,抓取入库,RSS/Atom 自动抓取,"作为用户，我要自动抓取标题、链接、摘要和发布时间",P0,已完成,"运行 collect 后 SQLite 有新增记录",scripts/intel_radar.py
+R004,抓取入库,网页监控兜底,"作为用户，我要对无 RSS 页面监控标题和关键词",P0,已完成,"无 RSS 来源不会阻塞整体流程",scripts/intel_radar.py
+R005,抓取入库,内容 diff 监控,"作为用户，我要知道帮助中心、定价页、更新日志发生了什么变化",P1,待完成,"同一 URL 内容变化时生成变更摘要",data/page_snapshots
+R006,去重存储,SQLite 去重库,"作为用户，我要避免重复收藏同一条信息",P0,已完成,"重复运行不会重复插入相同链接",data/intelligence.sqlite3
+R007,标签分类,类型自动标签,"作为用户，我要自动区分政策、产品、融资、技术、风险、竞品",P0,已完成,"每条记录有类型字段",scripts/intel_radar.py
+R008,标签分类,方向自动标签,"作为用户，我要自动标记 Agent、算力、API、知识库、安全、监管方向",P0,已完成,"每条记录有方向字段",scripts/intel_radar.py
+R009,标签分类,影响对象标签,"作为用户，我要知道信息影响 C端、B端、大厂、创业公司还是产品经理",P0,已完成,"每条记录有影响对象字段",scripts/intel_radar.py
+R010,判断系统,证据等级,"作为用户，我要区分官方原文、公司公告、媒体、KOL、招聘信号",P0,已完成,"来源配置和导出中都有证据等级",config/sources.json
+R011,判断系统,同向信号聚合,"作为用户，我要看到同一方向多个来源同时变化",P1,待完成,"当 7 天内同方向>=2 条时自动标记值得复盘",reports
+R012,判断系统,LLM 三句话摘要,"作为用户，我要每条信息都有发生了什么、为什么重要、对我有什么影响",P1,已完成,"配置 OPENAI_API_KEY 或 LLM_API_KEY 后可生成结构化摘要",scripts/intel_radar.py
+R013,输出导出,Notion CSV 导出,"作为用户，我要把情报导入 Notion 数据库",P0,已完成,"生成 exports/notion_import.csv",exports/notion_import.csv
+R013-1,输出导出,Notion API 自动同步,"作为用户，我要自动把新增情报写入 Notion，减少手动导入",P1,已完成,"配置 NOTION_TOKEN 和 NOTION_DATA_SOURCE_ID 后可同步未同步记录",scripts/intel_radar.py
+R014,输出导出,日报生成,"作为用户，我要每天得到一份可扫读日报",P0,已完成,"生成 reports/YYYY-MM-DD-日报.md",reports
+R015,输出导出,周报生成,"作为用户，我要每周得到一份复盘骨架",P0,已完成,"生成 reports/YYYY-MM-DD-周报.md",reports
+R016,输出导出,面试话术卡片,"作为用户，我要把判断转成面试表达",P1,待完成,"可导出 markdown 面试卡片",reports/interview_cards.md
+R017,输出导出,月度文章模板,"作为用户，我要把复盘沉淀成作品集文章",P1,待完成,"可生成月度文章大纲",reports/monthly_outline.md
+R018,自动化,每日运行脚本,"作为用户，我要一条命令完成抓取、导出、日报",P0,已完成,"scripts/run_daily.sh 可执行",scripts/run_daily.sh
+R019,自动化,macOS launchd 定时,"作为用户，我要每天自动运行",P1,待完成,"LaunchAgent 安装后每天 09:30 自动运行",templates/com.local.ai-intel-radar.daily.plist
+R020,社交网络,X List 工作流,"作为用户，我要追踪高质量 X 账号而不是刷首页",P2,待完成,"维护 X List 和关键词搜索链接清单",docs/x_sources.md
+R021,招聘信号,JD 关键词解析,"作为用户，我要从招聘中识别公司投入方向",P1,待完成,"输出岗位能力词频和公司方向判断",reports/jobs_signal.md
+R022,竞品分析,产品更新监控,"作为用户，我要监控平台公告、帮助中心、开发者文档变化",P1,待完成,"至少 10 个竞品页面有变更记录",data/page_snapshots
+R023,知识库,Obsidian/Markdown 归档,"作为用户，我要把周报沉淀成本地知识库",P2,待完成,"周报自动复制到 vault 目录",reports
+R024,Dashboard,本地看板,"作为用户，我要按方向和证据等级筛选情报",P2,待完成,"浏览器可打开本地 Dashboard",app
+R025,质量控制,来源健康检查,"作为用户，我要知道哪些源抓取失败",P1,待完成,"生成失败源列表和修复建议",reports/source_health.md
