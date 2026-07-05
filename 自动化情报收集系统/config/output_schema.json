@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "description": "AI/Agent 情报雷达输出结构。定义单条情报、日报、周报、知识库条目的标准字段，保证后续可以导出 Markdown、Notion、飞书或数据库。",
+  "single_item_schema": {
+    "item_id": {"type": "string", "required": true, "description": "唯一 ID，可用 source + url_hash + publish_date 生成"},
+    "title": {"type": "string", "required": true, "description": "原文标题或归纳后的事件标题"},
+    "source_name": {"type": "string", "required": true, "description": "来源名称，对应 sources.json 的 name"},
+    "source_url": {"type": "string", "required": true, "description": "原文链接"},
+    "published_at": {"type": "datetime", "required": false, "description": "发布时间，无法获取时为空"},
+    "collected_at": {"type": "datetime", "required": true, "description": "采集时间"},
+    "channel": {"type": "string", "required": true, "description": "情报频道，对应 sources.json 的 channel"},
+    "event_types": {"type": "array[string]", "required": true, "description": "事件类型，对应 event_types.json，可多标签"},
+    "primary_event_type": {"type": "string", "required": true, "description": "主事件类型，用于日报分组"},
+    "evidence_level": {"type": "string", "required": true, "description": "证据等级，对应 sources.json 的 evidence_level"},
+    "language": {"type": "string", "required": false, "description": "zh/en/mixed"},
+    "raw_summary": {"type": "string", "required": false, "description": "原始摘要，来自 RSS/网页/模型初步摘要"},
+    "clean_summary": {"type": "string", "required": true, "description": "清洗后的事实摘要，不加入主观判断"},
+    "why_it_matters": {"type": "string", "required": true, "description": "为什么这条信息重要"},
+    "product_insight": {"type": "string", "required": false, "description": "对 AI 产品/Agent 产品/平台商业化的启发"},
+    "career_insight": {"type": "string", "required": false, "description": "能否转化为面试表达、求职判断、能力补齐"},
+    "risk_insight": {"type": "string", "required": false, "description": "合规、安全、平台风险判断"},
+    "scores": {
+      "type": "object",
+      "required": true,
+      "description": "评分结果，对应 scoring_rules.json",
+      "fields": ["freshness_score", "evidence_score", "trend_score", "business_score", "personal_relevance_score", "risk_score", "final_score"]
+    },
+    "recommended_actions": {"type": "array[string]", "required": true, "description": "建议动作，如 track_follow_up/save_to_knowledge_base/convert_to_interview_story"},
+    "tags": {"type": "array[string]", "required": false, "description": "自由标签，如 Coze、Dify、AI合规、工作流、API定价"},
+    "related_items": {"type": "array[string]", "required": false, "description": "相关 item_id，用于事件归并"},
+    "status": {"type": "enum", "required": true, "values": ["new", "reviewed", "archived", "ignored", "follow_up"], "description": "处理状态"}
+  },
+  "daily_report_schema": {
+    "report_id": "daily_YYYY_MM_DD",
+    "title": "AI Agent Intelligence Radar Daily - YYYY-MM-DD",
+    "sections": [
+      {
+        "id": "top_signals",
+        "name": "今日最高优先级信号",
+        "description": "final_score 最高的 3-5 条，必须包含 why_it_matters 和 recommended_actions。",
+        "max_items": 5
+      },
+      {
+        "id": "policy_and_risk",
+        "name": "政策 / 合规 / 风险",
+        "description": "政策监管、下架整改、安全风险类信息。"
+      },
+      {
+        "id": "agent_product_updates",
+        "name": "Agent 产品 / 平台更新",
+        "description": "Agent 平台、AI 应用、产品功能、文档、Changelog。"
+      },
+      {
+        "id": "infra_and_api",
+        "name": "Infra / API / 算力",
+        "description": "模型 API、推理、网关、价格、限流、开源基础设施。"
+      },
+      {
+        "id": "commercialization",
+        "name": "投融资 / 商业化",
+        "description": "融资、客户、收入、收购、市场竞争。"
+      },
+      {
+        "id": "career_and_hiring",
+        "name": "招聘 / 岗位 / 能力信号",
+        "description": "岗位 JD、组织扩张、对 AI 产品经理能力的启发。"
+      },
+      {
+        "id": "today_takeaways",
+        "name": "今日结论",
+        "description": "用 3-5 句话总结今天对你的产品判断、求职判断、机会判断。"
+      }
+    ]
+  },
+  "weekly_report_schema": {
+    "report_id": "weekly_YYYY_WW",
+    "title": "AI Agent Intelligence Radar Weekly - YYYY-WW",
+    "sections": [
+      "本周最重要 10 条信号",
+      "本周政策/合规变化",
+      "本周 Agent 产品趋势",
+      "本周商业化和融资变化",
+      "本周招聘信号和岗位能力变化",
+      "可转化为面试表达的 3 个案例",
+      "下周需要持续追踪的问题"
+    ]
+  },
+  "markdown_templates": {
+    "single_item": "### {{title}}\n- 来源：{{source_name}}\n- 事件类型：{{primary_event_type}}\n- 评分：{{final_score}}\n- 事实摘要：{{clean_summary}}\n- 为什么重要：{{why_it_matters}}\n- 产品启发：{{product_insight}}\n- 建议动作：{{recommended_actions}}\n- 原文：{{source_url}}",
+    "daily_top_item": "### {{rank}}. {{title}}\n**评分：{{final_score}}｜来源：{{source_name}}｜类型：{{primary_event_type}}**\n\n事实：{{clean_summary}}\n\n判断：{{why_it_matters}}\n\n对我的价值：{{career_insight}}\n\n行动：{{recommended_actions}}"
+  },
+  "export_targets": {
+    "markdown": {"enabled": true, "path_pattern": "data/reports/daily_YYYY_MM_DD.md"},
+    "jsonl": {"enabled": true, "path_pattern": "data/processed/items_YYYY_MM_DD.jsonl"},
+    "notion": {"enabled": false, "description": "后续可映射到 Notion 数据库字段"},
+    "feishu_doc": {"enabled": false, "description": "后续可导出飞书日报"}
+  },
+  "extension_guide": {
+    "add_field": "新增字段时必须说明 type、required、description，避免后续导出混乱。",
+    "add_report_section": "新增报告栏目时必须说明入选条件，例如 event_type 或 final_score 阈值。",
+    "keep_raw_and_clean_separate": "raw_summary 保存原始摘要，clean_summary 保存事实摘要，避免模型判断污染原文事实。"
+  }
+}
