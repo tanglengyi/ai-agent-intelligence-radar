@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "description": "AI/Agent 情报雷达评分规则。用于把原始信息从“新闻”转成“优先级、可信度、个人价值和行动建议”。",
+  "score_range": {
+    "min": 1,
+    "max": 5,
+    "meaning": {
+      "1": "低价值，仅归档或忽略",
+      "2": "有一定参考价值，但不需要立刻处理",
+      "3": "值得阅读，可进入周报",
+      "4": "高价值，建议进入日报并沉淀知识库",
+      "5": "强信号，需要当天重点分析并转化为判断/案例/机会"
+    }
+  },
+  "final_score_formula": {
+    "freshness_score": 0.15,
+    "evidence_score": 0.2,
+    "trend_score": 0.2,
+    "business_score": 0.2,
+    "personal_relevance_score": 0.2,
+    "risk_score": 0.05,
+    "formula_text": "final_score = freshness*0.15 + evidence*0.20 + trend*0.20 + business*0.20 + personal*0.20 + risk*0.05"
+  },
+  "dimensions": {
+    "freshness_score": {
+      "description": "信息新鲜度。越新越值得优先处理。",
+      "rules": [
+        {"score": 5, "condition": "24小时内发布，或今天刚被官方确认"},
+        {"score": 4, "condition": "3天内发布，仍处于传播/发酵期"},
+        {"score": 3, "condition": "7天内发布，可进入周报"},
+        {"score": 2, "condition": "30天内发布，作为背景材料"},
+        {"score": 1, "condition": "超过30天，除非是政策/标准/经典报告，否则仅归档"}
+      ]
+    },
+    "evidence_score": {
+      "description": "证据可信度。优先官方原文，其次公司公告，再到媒体和社媒。",
+      "rules": [
+        {"score": 5, "condition": "政府、监管机构、标准组织、法院、官方政策原文"},
+        {"score": 4, "condition": "公司官方公告、官方博客、官方文档、GitHub Release、产品 Changelog"},
+        {"score": 3, "condition": "Reuters、TechCrunch、MIT TR、晚点、机器之心、量子位等可信媒体"},
+        {"score": 2, "condition": "招聘页、岗位 JD、社区讨论、公众号二次解读"},
+        {"score": 1, "condition": "X、小红书、即刻、微信群等未经证实的爆料或观点"}
+      ]
+    },
+    "trend_score": {
+      "description": "趋势强度。判断它是不是代表行业方向变化。",
+      "rules": [
+        {"score": 5, "condition": "影响整个 Agent / AI 应用 / AI 合规赛道的政策、平台规则、基础模型或生态变化"},
+        {"score": 4, "condition": "头部公司或主流开源框架发布重要能力，可能改变产品形态"},
+        {"score": 3, "condition": "单个平台重要功能更新，可能形成局部趋势"},
+        {"score": 2, "condition": "普通功能优化、局部案例、单家公司 PR"},
+        {"score": 1, "condition": "孤立信息，没有明显外溢影响"}
+      ]
+    },
+    "business_score": {
+      "description": "商业价值。判断它是否影响商业化、客户付费、岗位机会或创业机会。",
+      "rules": [
+        {"score": 5, "condition": "直接影响 Agent 商业模式、企业付费、合规准入、平台上架、API 定价或岗位需求"},
+        {"score": 4, "condition": "影响企业知识库、工作流、模型调用、内容安全、AI 产品经理岗位能力"},
+        {"score": 3, "condition": "有商业参考价值，但需要二次推导"},
+        {"score": 2, "condition": "偏技术或偏传播，对商业判断间接有用"},
+        {"score": 1, "condition": "纯概念、纯噱头、缺少商业落地线索"}
+      ]
+    },
+    "personal_relevance_score": {
+      "description": "与你个人目标的相关度。你的主目标是 AI 产品经理求职、产品复盘、Agent 机会判断。",
+      "rules": [
+        {"score": 5, "condition": "能直接转化为面试表达、产品判断、商业化案例、AI 合规判断或创业机会"},
+        {"score": 4, "condition": "与 AI Agent、企业知识库、工作流、内容安全、API 网关、模型中转高度相关"},
+        {"score": 3, "condition": "与 AI 行业趋势相关，但和你的求职/产品复盘需要二次连接"},
+        {"score": 2, "condition": "偏底层技术、资本市场或海外新闻，对你只是背景补充"},
+        {"score": 1, "condition": "和你的当前职业目标关系弱"}
+      ]
+    },
+    "risk_score": {
+      "description": "风险/预警价值。高风险不一定是坏事，而是值得你重点关注。",
+      "rules": [
+        {"score": 5, "condition": "涉及下架、整改、监管处罚、平台关闭、API 限制、合规准入变化"},
+        {"score": 4, "condition": "涉及隐私、安全、内容安全、拟人化、未成年人、金融/医疗等高风险场景"},
+        {"score": 3, "condition": "存在不确定性，需要跟踪后续"},
+        {"score": 2, "condition": "普通产品风险或轻微负面信号"},
+        {"score": 1, "condition": "无明显风险，仅普通更新"}
+      ]
+    }
+  },
+  "priority_thresholds": {
+    "daily_top": {"min_final_score": 4.2, "action": "进入日报 Top 5，必须给出产品判断和行动建议"},
+    "daily_normal": {"min_final_score": 3.5, "action": "进入日报普通条目"},
+    "weekly": {"min_final_score": 2.8, "action": "进入周报或知识库候选"},
+    "archive_only": {"min_final_score": 2.0, "action": "仅归档，不主动推送"},
+    "ignore": {"max_final_score": 1.99, "action": "忽略或低频保留"}
+  },
+  "action_mapping": [
+    {"action_type": "convert_to_interview_story", "trigger": "personal_relevance_score >= 4 and business_score >= 4", "description": "转成面试案例：背景-变化-判断-我的产品启发"},
+    {"action_type": "track_follow_up", "trigger": "risk_score >= 4 or trend_score >= 4", "description": "持续追踪，等待官方二次确认或行业连锁反应"},
+    {"action_type": "save_to_knowledge_base", "trigger": "final_score >= 3.5", "description": "沉淀进知识库，保留原文链接、摘要、标签、判断"},
+    {"action_type": "create_product_insight", "trigger": "trend_score >= 4 and business_score >= 3", "description": "沉淀为产品洞察：能力变化、客户价值、风险边界"},
+    {"action_type": "ignore", "trigger": "final_score < 2", "description": "不进入日报，避免信息噪音"}
+  ],
+  "extension_guide": {
+    "add_new_dimension": "新增评分维度时，必须补 description、1-5 分规则，并在 final_score_formula 中设置权重。所有权重总和建议等于 1。",
+    "adjust_weights": "如果近期目标偏求职，提高 personal_relevance_score；如果偏创业，提高 business_score；如果偏政策风险，提高 risk_score。",
+    "add_rule": "每条规则必须可判断，避免使用“比较重要”“有点相关”等模糊描述。"
+  }
+}
