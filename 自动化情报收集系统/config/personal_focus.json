@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "description": "个人关注规则。用于把通用 AI 情报转成与唐文怡当前职业目标、产品判断、面试表达和机会判断相关的个人价值。",
+  "profile": {
+    "name": "唐文怡",
+    "current_positioning": "AI / ToB 产品经理，关注 Agent、企业知识库、AI 工作流、商业化和合规",
+    "primary_goal": "用情报系统辅助求职、产品复盘、AI 方向判断和潜在创业机会筛选",
+    "secondary_goal": "沉淀可复用的面试案例、产品方法论、竞品判断、行业认知"
+  },
+  "focus_topics": [
+    {"id": "ai_agent", "name": "AI Agent / 智能体", "weight": 5, "keywords": ["Agent", "智能体", "agentic", "multi-agent", "tool use", "工具调用", "workflow"]},
+    {"id": "enterprise_knowledge_base", "name": "企业知识库 / RAG", "weight": 5, "keywords": ["知识库", "RAG", "enterprise search", "document QA", "文档问答", "知识图谱"]},
+    {"id": "workflow_automation", "name": "工作流自动化", "weight": 5, "keywords": ["workflow", "工作流", "automation", "n8n", "Zapier", "Make", "流程编排"]},
+    {"id": "ai_compliance", "name": "AI 合规 / 内容安全", "weight": 5, "keywords": ["合规", "内容安全", "算法备案", "个人信息", "未成年人", "拟人化", "AI safety"]},
+    {"id": "api_gateway", "name": "API / 模型网关 / 中转", "weight": 4, "keywords": ["API", "gateway", "router", "模型中转", "OpenRouter", "LiteLLM", "rate limit", "pricing"]},
+    {"id": "commercial_pm", "name": "商业化产品经理", "weight": 5, "keywords": ["商业化", "付费", "定价", "客户", "ARR", "增长", "转化率", "套餐"]},
+    {"id": "job_signal", "name": "岗位 / 能力信号", "weight": 4, "keywords": ["AI 产品经理", "Product Manager", "JD", "招聘", "能力要求", "AI合规岗", "Agent PM"]},
+    {"id": "open_source_agent_stack", "name": "开源 Agent 技术栈", "weight": 3, "keywords": ["Dify", "LangGraph", "LlamaIndex", "vLLM", "Qwen-Agent", "Coze Studio"]}
+  ],
+  "high_value_questions": [
+    "这个变化是否影响 Agent 产品的商业化路径？",
+    "这个变化是否说明平台规则或监管边界发生变化？",
+    "这个变化是否能转成面试中的产品判断案例？",
+    "这个变化是否说明某类 AI 产品正在被市场验证？",
+    "这个变化是否影响 AI 产品经理需要具备的能力？",
+    "这个变化是否暴露出普通 Agent 公司会遇到的风险？",
+    "这个变化是否能沉淀成我的知识库标签或选题？"
+  ],
+  "career_use_cases": {
+    "interview_story": {
+      "description": "可转化为面试表达的信息",
+      "structure": ["背景", "外部变化", "产品判断", "我会怎么做", "可量化结果或风险控制"],
+      "trigger_rules": [
+        "personal_relevance_score >= 4",
+        "business_score >= 4 or risk_score >= 4",
+        "event_type in [policy_regulation, shutdown_or_removal, product_launch, pricing_change, case_study]"
+      ]
+    },
+    "product_review": {
+      "description": "可转化为产品复盘的信息",
+      "structure": ["产品能力", "目标用户", "使用场景", "商业价值", "风险边界", "我自己的反思"],
+      "trigger_rules": [
+        "event_type in [product_launch, feature_update, case_study, open_source_release]",
+        "trend_score >= 3"
+      ]
+    },
+    "opportunity_list": {
+      "description": "可进入机会清单的信息",
+      "structure": ["机会名称", "客户是谁", "痛点是什么", "为什么现在可做", "竞争/合规风险", "最小验证方式"],
+      "trigger_rules": [
+        "business_score >= 4",
+        "trend_score >= 4",
+        "risk_score <= 4"
+      ]
+    }
+  },
+  "personal_relevance_rules": [
+    {"score": 5, "condition": "同时命中 focus_topics 中 weight=5 的主题，并且能回答至少 2 个 high_value_questions"},
+    {"score": 4, "condition": "命中一个 weight=5 主题，或两个 weight>=4 主题"},
+    {"score": 3, "condition": "命中 AI/Agent 大方向，但和求职/商业化/合规需要二次转译"},
+    {"score": 2, "condition": "偏技术、资本或海外信息，能补背景但不能直接转化"},
+    {"score": 1, "condition": "与当前职业目标弱相关"}
+  ],
+  "negative_filters": [
+    {"name": "纯营销软文", "rule": "只夸产品，没有事实、数据、公告、客户或功能变化", "action": "降权或忽略"},
+    {"name": "重复转载", "rule": "同一事件被多家媒体转载，保留官方源或最早可信源", "action": "归并"},
+    {"name": "无来源爆料", "rule": "只有社媒观点，没有原文链接或官方确认", "action": "标记为 market_opinion，不进入事实结论"},
+    {"name": "过深底层技术", "rule": "只涉及模型训练细节、论文指标、底层优化，无法连接产品/商业/合规", "action": "personal_relevance_score 不超过 3"}
+  ],
+  "knowledge_tags": [
+    "AI Agent",
+    "企业知识库",
+    "工作流",
+    "AI合规",
+    "内容安全",
+    "API网关",
+    "模型中转",
+    "商业化",
+    "产品经理能力",
+    "面试案例",
+    "创业机会",
+    "竞品分析",
+    "政策监管",
+    "下架整改"
+  ],
+  "extension_guide": {
+    "add_focus_topic": "新增关注主题时必须设置 id、name、weight、keywords。weight=5 代表当前最重要的职业/产品方向。",
+    "change_goal": "如果未来从求职切到创业，把 commercial_pm 和 opportunity_list 权重提高；如果切到合规岗位，把 ai_compliance 权重提高。",
+    "review_cycle": "建议每月复盘一次 focus_topics，删除不再服务当前目标的主题，避免情报系统越来越臃肿。"
+  }
+}
