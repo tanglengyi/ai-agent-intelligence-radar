@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "description": "AI/Agent 情报事件类型字典。用于把原始信息归类成可分析、可统计、可输出的事件。",
+  "default_event_type": "other",
+  "event_type_fields": {
+    "id": "机器可读事件类型 ID",
+    "name": "中文名称",
+    "description": "事件定义",
+    "typical_sources": "常见来源",
+    "keywords": "识别关键词",
+    "default_priority": "默认优先级 1-5",
+    "recommended_actions": "建议后续动作"
+  },
+  "event_types": [
+    {
+      "id": "policy_regulation",
+      "name": "政策 / 监管变化",
+      "description": "政府、监管机构、标准组织发布的 AI、算法、数据、安全、智能体相关政策、规定、征求意见稿或监管动作。",
+      "typical_sources": ["网信办", "工信部", "市场监管总局", "发改委", "国家标准委", "NIST", "EU AI Act Tracker", "UK AI Safety Institute"],
+      "keywords": ["政策", "监管", "办法", "规定", "征求意见", "备案", "合规", "AI Act", "risk", "governance"],
+      "default_priority": 5,
+      "recommended_actions": ["track_follow_up", "save_to_knowledge_base", "create_product_insight"]
+    },
+    {
+      "id": "standard_update",
+      "name": "标准 / 规范变化",
+      "description": "AI、大模型、数据安全、个人信息、内容安全、智能体相关国家标准、行业标准、框架或评估规范。",
+      "typical_sources": ["国家标准委", "全国标准信息公共服务平台", "NIST AI", "OECD AI Policy Observatory"],
+      "keywords": ["标准", "规范", "评估", "框架", "AI RMF", "benchmark", "safety standard"],
+      "default_priority": 4,
+      "recommended_actions": ["save_to_knowledge_base", "create_product_insight"]
+    },
+    {
+      "id": "product_launch",
+      "name": "新产品 / 新平台发布",
+      "description": "厂商发布新的 AI 产品、Agent 平台、开发者平台、API、应用或商业化版本。",
+      "typical_sources": ["OpenAI News", "Anthropic News", "Google AI Blog", "Dify Blog", "扣子 Coze 文档", "阿里云百炼文档"],
+      "keywords": ["launch", "发布", "上线", "new product", "platform", "agent", "assistant", "workspace"],
+      "default_priority": 4,
+      "recommended_actions": ["create_product_insight", "convert_to_interview_story", "save_to_knowledge_base"]
+    },
+    {
+      "id": "feature_update",
+      "name": "功能更新 / Changelog",
+      "description": "现有产品或平台发布功能增强、体验优化、权限变化、工作流能力、工具调用能力、知识库能力等。",
+      "typical_sources": ["GitHub Releases", "产品 Changelog", "官方文档", "OpenAI Developers", "Cursor Changelog"],
+      "keywords": ["update", "changelog", "release", "新增", "优化", "workflow", "tool call", "RAG", "memory"],
+      "default_priority": 3,
+      "recommended_actions": ["save_to_knowledge_base", "create_product_insight"]
+    },
+    {
+      "id": "pricing_change",
+      "name": "价格 / 计费 / 限流变化",
+      "description": "API 价格、套餐、额度、调用限制、企业版定价、模型路由、推理成本变化。",
+      "typical_sources": ["OpenRouter Announcements", "OpenAI Developers", "阿里云百炼产品动态", "火山引擎方舟文档"],
+      "keywords": ["pricing", "price", "rate limit", "quota", "计费", "价格", "限流", "套餐", "tokens"],
+      "default_priority": 4,
+      "recommended_actions": ["create_product_insight", "track_follow_up"]
+    },
+    {
+      "id": "shutdown_or_removal",
+      "name": "下架 / 关闭 / 整改",
+      "description": "AI 产品、智能体、角色、插件、平台能力被下架、停服、限制、整改或灰度关闭。",
+      "typical_sources": ["官方公告", "媒体", "社媒弱信号", "开发者社区"],
+      "keywords": ["下架", "关闭", "停服", "整改", "限制", "禁用", "remove", "shutdown", "deprecate", "suspend"],
+      "default_priority": 5,
+      "recommended_actions": ["track_follow_up", "convert_to_interview_story", "create_product_insight"]
+    },
+    {
+      "id": "open_source_release",
+      "name": "开源版本发布",
+      "description": "Dify、LangGraph、LlamaIndex、vLLM、LiteLLM、Qwen-Agent 等开源项目发布版本或关键能力。",
+      "typical_sources": ["GitHub Releases", "Hugging Face Blog", "LangChain Blog"],
+      "keywords": ["GitHub Release", "release", "open source", "开源", "版本", "tag", "agent framework"],
+      "default_priority": 3,
+      "recommended_actions": ["save_to_knowledge_base", "create_product_insight"]
+    },
+    {
+      "id": "security_safety_risk",
+      "name": "安全 / 内容安全 / 风险事件",
+      "description": "AI 安全漏洞、越权、提示词注入、内容安全、拟人陪伴、未成年人、隐私、数据泄露等风险事件。",
+      "typical_sources": ["NIST AI", "UK AI Safety Institute", "媒体", "官方公告", "社媒弱信号"],
+      "keywords": ["安全", "内容安全", "隐私", "未成年人", "提示词注入", "jailbreak", "prompt injection", "privacy", "safety"],
+      "default_priority": 5,
+      "recommended_actions": ["track_follow_up", "create_product_insight", "save_to_knowledge_base"]
+    },
+    {
+      "id": "funding_commercialization",
+      "name": "融资 / 商业化信号",
+      "description": "AI/Agent 公司融资、商业化进展、客户签约、收入、上市、收购、裁员或战略转向。",
+      "typical_sources": ["TechCrunch AI", "36氪", "晚点 LatePost", "Reuters Technology", "PANDaily"],
+      "keywords": ["融资", "funding", "revenue", "ARR", "商业化", "客户", "收购", "IPO", "裁员"],
+      "default_priority": 3,
+      "recommended_actions": ["create_product_insight", "save_to_knowledge_base"]
+    },
+    {
+      "id": "hiring_signal",
+      "name": "招聘 / 组织信号",
+      "description": "岗位 JD、招聘数量、组织调整、团队扩张反映某公司正在投入的 AI 方向。",
+      "typical_sources": ["Boss 直聘", "LinkedIn", "拉勾", "公司招聘页"],
+      "keywords": ["招聘", "岗位", "JD", "Product Manager", "AI Agent", "AI合规", "内容安全", "workflow"],
+      "default_priority": 2,
+      "recommended_actions": ["track_follow_up", "convert_to_interview_story"]
+    },
+    {
+      "id": "market_opinion",
+      "name": "市场观点 / 早鸟信号",
+      "description": "来自 X、即刻、小红书、公众号、社区的早期观点、爆料或讨论，不作为事实结论，只作为跟踪线索。",
+      "typical_sources": ["X", "即刻", "小红书", "公众号", "社区"],
+      "keywords": ["爆料", "传闻", "观点", "讨论", "thread", "rumor", "insight"],
+      "default_priority": 2,
+      "recommended_actions": ["track_follow_up"]
+    },
+    {
+      "id": "case_study",
+      "name": "案例 / 落地实践",
+      "description": "企业 AI、知识库、Agent、工作流、客服、销售、运营等实际落地案例。",
+      "typical_sources": ["厂商博客", "媒体", "客户案例", "研究报告"],
+      "keywords": ["案例", "落地", "客户", "enterprise", "case study", "workflow", "knowledge base"],
+      "default_priority": 3,
+      "recommended_actions": ["convert_to_interview_story", "save_to_knowledge_base", "create_product_insight"]
+    },
+    {
+      "id": "other",
+      "name": "其他",
+      "description": "暂时无法归入以上类型的信息。需要人工复核，避免误分类。",
+      "typical_sources": [],
+      "keywords": [],
+      "default_priority": 1,
+      "recommended_actions": ["archive_only"]
+    }
+  ],
+  "classification_rules": {
+    "priority_order": [
+      "shutdown_or_removal",
+      "policy_regulation",
+      "security_safety_risk",
+      "pricing_change",
+      "product_launch",
+      "feature_update",
+      "open_source_release",
+      "funding_commercialization",
+      "hiring_signal",
+      "market_opinion",
+      "case_study",
+      "standard_update",
+      "other"
+    ],
+    "multi_label_allowed": true,
+    "max_labels_per_item": 3,
+    "rule": "同一条信息可以有多个标签。例如：豆包智能体下架 = shutdown_or_removal + policy_regulation + security_safety_risk。输出时主标签按 priority_order 选最高优先级。"
+  },
+  "extension_guide": {
+    "add_event_type": "新增事件类型时，必须填写 id、name、description、keywords、default_priority、recommended_actions。",
+    "avoid_overlap": "如果新事件类型和已有类型高度重叠，优先扩展 keywords，而不是新增类型。",
+    "use_multi_label": "复杂事件不要强行单分类，允许多标签表达。"
+  }
+}
