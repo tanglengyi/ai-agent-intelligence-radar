@@ -1,10 +1,10 @@
 # AI/Agent 自动化情报收集系统
 
-当前版本：**v1.1.0**
+当前版本：**v1.2.0**
 
 这是一个面向企业 AI 产品经理、AI Business Product、企业 AI 解决方案负责人、求职复盘和作品集沉淀的轻量情报系统。
 
-目标不是收藏更多新闻，而是把外部信息变成稳定的决策输入：
+目标不是收藏更多新闻，而是把外部信息变成稳定、可排查的决策输入：
 
 ```text
 信息源
@@ -13,6 +13,7 @@
   -> 竞品归属 / 采购阶段 / 预算识别
   -> 可信度评分
   -> Notion / 日报 / 周报
+  -> 运行摘要 / 故障诊断 / 日志留存
   -> 产品判断 / 机会池 / 需求池 / 面试表达
 ```
 
@@ -51,10 +52,23 @@
 9. 阿里云百炼 / Model Studio；
 10. 腾讯云智能体开发平台 ADP。
 
-## 产品和版本文档
+### 运行运维与故障排查
+
+- `scripts/run_daily_ops.py`：统一运行测试、通用 Pipeline 和竞品雷达；
+- 每一步记录退出码、耗时、stdout、stderr 和错误摘要；
+- 自动生成 `success`、`warning`、`failed` 运行状态；
+- 自动识别零采集、零竞品信号、低覆盖率、Summary 缺失和 Notion 失败；
+- GitHub Actions 页面直接展示 Job Summary；
+- `data/run_logs/` 保存逐步骤日志和结构化运行摘要；
+- 即使任务失败，日报和日志仍会通过 Artifact 上传；
+- 日志中的常用 Token 和 API Key 会自动脱敏。
+
+## 产品、版本和运维文档
 
 - [AI 竞品与采购情报雷达 PRD](docs/AI竞品与采购情报雷达_PRD.md)
 - [竞品与采购情报雷达使用说明](docs/竞品与采购情报雷达.md)
+- [运行与故障排查手册](docs/运行与故障排查手册.md)
+- [故障排查记录](docs/故障排查记录.md)
 - [版本更新记录](docs/版本更新记录.md)
 - [产品规划](docs/产品规划.md)
 - [解决方案设计](docs/解决方案设计.md)
@@ -64,12 +78,20 @@
 
 ## 快速开始
 
+完整执行并生成运维日志：
+
 ```bash
-chmod +x scripts/run_daily.sh scripts/run_weekly.sh
+cd 自动化情报收集系统
+python3 scripts/run_daily_ops.py --date today
+```
+
+只运行通用情报：
+
+```bash
 python3 scripts/intel_radar.py run
 ```
 
-运行竞品与采购雷达：
+只运行竞品与采购雷达：
 
 ```bash
 python3 src/competitive_procurement.py \
@@ -81,45 +103,49 @@ python3 src/competitive_procurement.py \
 运行后查看：
 
 ```bash
-open exports/notion_import.csv
-open reports
+open data/reports
 open data/competitive_procurement
+open data/run_logs/latest_run.md
 ```
 
 ## 常用命令
 
 ```bash
+# 每日完整运行：测试 + 通用情报 + 竞品情报 + 运维摘要
+python3 scripts/run_daily_ops.py --date today
+
+# 指定日期
+python3 scripts/run_daily_ops.py --date 2026-07-23
+
+# 排查模式：失败时仍返回 0
+python3 scripts/run_daily_ops.py --date today --allow-failure
+
+# 跳过测试
+python3 scripts/run_daily_ops.py --date today --skip-tests
+
 # 只抓取新增信息
 python3 scripts/intel_radar.py collect
 
 # 导出 Notion CSV
 python3 scripts/intel_radar.py export
 
-# 生成日报
+# 生成通用日报
 python3 scripts/intel_radar.py daily
 
 # 生成周报
 python3 scripts/intel_radar.py weekly
 
-# 通用情报：抓取 + 导出 + 日报
+# 通用情报完整流程
 python3 scripts/intel_radar.py run
 
 # LLM 三句话摘要
 python3 scripts/intel_radar.py enhance --limit 20
 
-# 通用情报同步到 Notion
+# 通用情报同步 Notion
 python3 scripts/intel_radar.py notion-sync --limit 50
-
-# 通用情报完整流程
-python3 scripts/intel_radar.py run --enhance --sync-notion --limit 30
 
 # 竞品与采购情报
 python3 src/competitive_procurement.py --date today
-
-# 竞品与采购情报手动同步 Notion
-python3 src/competitive_procurement.py \
-  --date today \
-  --notion-parent-page-id YOUR_PAGE_ID
 
 # 运行全部测试
 python3 -m unittest discover -s tests -p "test_*.py"
@@ -127,7 +153,7 @@ python3 -m unittest discover -s tests -p "test_*.py"
 
 ## 每日输出
 
-通用情报输出：
+通用情报：
 
 ```text
 data/raw/
@@ -137,13 +163,52 @@ reports/
 exports/
 ```
 
-竞品采购输出：
+竞品采购：
 
 ```text
 data/competitive_procurement/signals_YYYY-MM-DD.jsonl
 data/competitive_procurement/daily_YYYY-MM-DD.md
 data/competitive_procurement/summary_YYYY-MM-DD.json
 ```
+
+运行运维：
+
+```text
+data/run_logs/
+  latest_run.json
+  latest_run.md
+  YYYY-MM-DD/
+    <run_id>/
+      01_unit-tests.log
+      02_general-pipeline.log
+      03_competitive-radar.log
+      run_summary.json
+      run_summary.md
+```
+
+运行日志不会提交进 Git 历史，由 GitHub Actions Artifact 保存 30 天。
+
+## 线上查看日报和日志
+
+进入：
+
+```text
+GitHub -> Actions -> Daily AI Intelligence Radar
+```
+
+每次 Run 可查看：
+
+- 工作流整体成功或失败；
+- Job Summary 中的步骤状态、数据量、竞品覆盖率和 Notion 状态；
+- Artifact 中的通用日报、竞品日报、JSON Summary 和逐步骤日志。
+
+Artifact 名称：
+
+```text
+ai-intelligence-<github_run_id>
+```
+
+任务失败时，Artifact 上传步骤仍会执行。
 
 ## Notion 使用方式
 
@@ -195,14 +260,14 @@ cp .env.example .env
 
 - 每天北京时间 08:30 执行；
 - 支持手动触发；
-- 运行单元测试；
-- 执行通用情报和竞品采购情报；
+- 统一运行单元测试、通用情报和竞品采购情报；
 - 有 Notion Secret 时自动同步；
-- 运行产物保留 30 天。
+- 自动生成 Job Summary 和诊断结果；
+- 日报和运维日志作为 Artifact 保留 30 天。
 
 ### macOS launchd
 
-本地模板每天 09:30 调用 `scripts/run_daily.sh`。本地任务依赖电脑开机，GitHub Actions 是主要定时保障。
+本地模板每天 09:30 调用 `scripts/run_daily.sh`。该脚本已统一转到 `run_daily_ops.py`。本地任务依赖电脑开机，GitHub Actions 是主要定时保障。
 
 ## 数据源方式
 
