@@ -1,7 +1,8 @@
 """AI competitive and procurement intelligence radar.
 
-Collect ten signal families, extract procurement intent/budget, score them, write
-JSONL + Markdown, and optionally publish the daily report to Notion.
+Collect ten signal families plus a focused competitor watchlist, extract
+procurement intent/budget, score signals, write JSONL + Markdown, and optionally
+publish the daily report to Notion.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from rss_collector import fetch_text, parse_rss_or_atom, source_feed_url
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = PROJECT_ROOT / "config"
 DEFAULT_CONFIG_PATH = CONFIG_DIR / "competitive_procurement.json"
+DEFAULT_WATCHLIST_PATH = CONFIG_DIR / "competitor_watchlist.json"
 BASE_SOURCES_PATH = CONFIG_DIR / "sources.json"
 ENV_PATH = PROJECT_ROOT / ".env"
 
@@ -48,6 +50,11 @@ class ProcurementSignal:
     score: float
     confidence: str
     recommended_action: str
+    competitor_id: str = ""
+    competitor_vendor: str = ""
+    competitor_product: str = ""
+    competitor_relevance: str = ""
+    competitor_dimensions: List[str] | None = None
 
 
 def load_json(path: Path) -> Dict[str, Any]:
@@ -71,11 +78,68 @@ def keyword_hits(text: str, keywords: Sequence[str]) -> List[str]:
     hits: List[str] = []
     seen: set[str] = set()
     for keyword in keywords:
-        normalized = keyword.lower()
+        normalized = str(keyword).lower()
         if normalized and normalized in lowered and normalized not in seen:
-            hits.append(keyword)
+            hits.append(str(keyword))
             seen.add(normalized)
     return hits
+
+
+def unique_strings(values: Sequence[str]) -> List[str]:
+    result: List[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value).strip()
+        normalized = text.lower()
+        if text and normalized not in seen:
+            result.append(text)
+            seen.add(normalized)
+    return result
+
+
+def validate_watchlist(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    competitors = payload.get("competitors", [])
+    expected = int(payload.get("expected_competitor_count", 10))
+    if len(competitors) != expected:
+        raise ValueError(f"competitor watchlist requires {expected} entries, got {len(competitors)}")
+    ids = [str(item.get("id", "")).strip() for item in competitors]
+    if any(not item_id for item_id in ids):
+        raise ValueError("every competitor requires a non-empty id")
+    if len(set(ids)) != len(ids):
+        raise ValueError("competitor ids must be unique")
+    for item in competitors:
+        for field in ("vendor", "product", "official_url", "news_feed_url"):
+            if not str(item.get(field, "")).strip():
+                raise ValueError(f"competitor {item.get('id')} missing required field: {field}")
+    return competitors
+
+
+def match_competitor(
+    text: str,
+    competitors: Sequence[Dict[str, Any]],
+    forced_id: str = "",
+) -> Optional[Dict[str, Any]]:
+    if forced_id:
+        for competitor in competitors:
+            if competitor.get("id") == forced_id:
+                return competitor
+    lowered = text.lower()
+    candidates: List[Tuple[int, Dict[str, Any]]] = []
+    for competitor in competitors:
+        aliases = unique_strings(
+            [
+                competitor.get("vendor", ""),
+                competitor.get("product", ""),
+                *competitor.get("aliases", []),
+            ]
+        )
+        matched = [alias for alias in aliases if alias.lower() in lowered]
+        if matched:
+            candidates.append((max(len(alias) for alias in matched), competitor))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
 
 
 def detect_stage(text: str, rules: Dict[str, Sequence[str]]) -> str:
@@ -161,6 +225,7 @@ class CompetitiveProcurementRadar:
     def __init__(
         self,
         config_path: Path = DEFAULT_CONFIG_PATH,
+        watchlist_path: Path = DEFAULT_WATCHLIST_PATH,
         date_text: str = "today",
         rsshub_base: str = "https://rsshub.app",
         limit_per_source: int = 5,
@@ -168,6 +233,8 @@ class CompetitiveProcurementRadar:
         top_n: int = 20,
     ) -> None:
         self.config = load_json(config_path)
+        self.watchlist = load_json(watchlist_path)
+        self.competitors = validate_watchlist(self.watchlist)
         self.base_sources = load_json(BASE_SOURCES_PATH)
         self.timezone = self.config.get("timezone", "Asia/Shanghai")
         self.date_text = (
@@ -184,6 +251,34 @@ class CompetitiveProcurementRadar:
         self.report_path = self.output_dir / f"daily_{self.date_text}.md"
         self.summary_path = self.output_dir / f"summary_{self.date_text}.json"
 
+    def competitor_sources(self) -> List[Dict[str, Any]]:
+        sources: List[Dict[str, Any]] = []
+        for competitor in self.competitors:
+            sources.append(
+                {
+                    "name": f"{competitor['product']} 官方动态",
+                    "signal_category": "competitor_pricing",
+                    "evidence_level": "公司公告 / 官方站点索引",
+                    "source_type": "google_news_rss",
+                    "priority": 6,
+                    "language": competitor.get("language", "mixed"),
+                    "stability": "high",
+                    "url": competitor["official_url"],
+                    "feed_url": competitor["news_feed_url"],
+                    "monitor_keywords": unique_strings(
+                        [
+                            competitor["vendor"],
+                            competitor["product"],
+                            *competitor.get("aliases", []),
+                            *competitor.get("monitor_keywords", []),
+                        ]
+                    ),
+                    "require_keyword_match": True,
+                    "competitor_id": competitor["id"],
+                }
+            )
+        return sources
+
     def resolve_sources(self) -> List[Dict[str, Any]]:
         source_map = {item.get("name"): item for item in self.base_sources.get("sources", [])}
         resolved: List[Dict[str, Any]] = []
@@ -196,8 +291,26 @@ class CompetitiveProcurementRadar:
             merged.update(ref)
             resolved.append(merged)
         resolved.extend(dict(item) for item in self.config.get("sources", []))
-        resolved.sort(key=lambda item: int(item.get("priority", 1)), reverse=True)
-        return resolved[: self.max_sources] if self.max_sources else resolved
+        resolved.extend(self.competitor_sources())
+        deduplicated: Dict[str, Dict[str, Any]] = {}
+        for source in resolved:
+            key = source_feed_url(source, self.rsshub_base) or source.get("url") or source.get("name")
+            deduplicated[str(key)] = source
+        sources = list(deduplicated.values())
+        sources.sort(key=lambda item: int(item.get("priority", 1)), reverse=True)
+        return sources[: self.max_sources] if self.max_sources else sources
+
+    def tracked_company_keywords(self) -> List[str]:
+        values: List[str] = list(self.config.get("tracked_companies", []))
+        for competitor in self.competitors:
+            values.extend(
+                [
+                    competitor.get("vendor", ""),
+                    competitor.get("product", ""),
+                    *competitor.get("aliases", []),
+                ]
+            )
+        return unique_strings(values)
 
     def analyze(self, source: Dict[str, Any], feed_url: str, raw: Dict[str, Optional[str]]) -> Optional[ProcurementSignal]:
         category_key = source.get("signal_category", "technology_development")
@@ -207,19 +320,33 @@ class CompetitiveProcurementRadar:
         title = raw.get("title") or "未命名竞品采购信号"
         summary = raw.get("summary") or ""
         text = re.sub(r"\s+", " ", f"{title} {summary}").strip()
+        competitor = match_competitor(text, self.competitors, source.get("competitor_id", ""))
+        competitor_keywords: List[str] = []
+        if competitor:
+            competitor_keywords = unique_strings(
+                [
+                    competitor.get("vendor", ""),
+                    competitor.get("product", ""),
+                    *competitor.get("aliases", []),
+                    *competitor.get("monitor_keywords", []),
+                ]
+            )
         hits = keyword_hits(
             text,
             [
                 *self.config.get("global_ai_keywords", []),
                 *category.get("keywords", []),
                 *source.get("monitor_keywords", []),
+                *competitor_keywords,
             ],
         )
         if not hits and source.get("require_keyword_match", True):
             return None
         stage = detect_stage(text, self.config.get("procurement_stage_keywords", {}))
         budget_text, budget_cny = extract_budget(text)
-        companies = keyword_hits(text, self.config.get("tracked_companies", []))
+        companies = keyword_hits(text, self.tracked_company_keywords())
+        if competitor:
+            companies = unique_strings([*companies, competitor["vendor"], competitor["product"]])
         score = score_signal(
             int(category.get("weight", 3)),
             source.get("evidence_level", "未知"),
@@ -247,6 +374,11 @@ class CompetitiveProcurementRadar:
             score=score,
             confidence=confidence_level(score, source.get("evidence_level", "未知"), stage, budget_cny),
             recommended_action=category.get("recommended_action", "进入周复盘并交叉验证"),
+            competitor_id=competitor.get("id", "") if competitor else "",
+            competitor_vendor=competitor.get("vendor", "") if competitor else "",
+            competitor_product=competitor.get("product", "") if competitor else "",
+            competitor_relevance=competitor.get("why_relevant", "") if competitor else "",
+            competitor_dimensions=competitor.get("strategic_focus", []) if competitor else [],
         )
 
     def collect(self) -> List[ProcurementSignal]:
@@ -271,16 +403,28 @@ class CompetitiveProcurementRadar:
 
     @staticmethod
     def deduplicate(signals: Iterable[ProcurementSignal]) -> List[ProcurementSignal]:
-        seen: set[Tuple[str, str]] = set()
+        seen: set[Tuple[str, str, str]] = set()
         result: List[ProcurementSignal] = []
         for signal in signals:
-            key = (re.sub(r"\W+", "", signal.title.lower())[:120], signal.signal_category)
+            key = (
+                re.sub(r"\W+", "", signal.title.lower())[:120],
+                signal.signal_category,
+                signal.competitor_id,
+            )
             if key not in seen:
                 seen.add(key)
                 result.append(signal)
         return result
 
+    def competitor_coverage(self, signals: Sequence[ProcurementSignal]) -> Dict[str, int]:
+        return {
+            competitor["id"]: sum(signal.competitor_id == competitor["id"] for signal in signals)
+            for competitor in self.competitors
+        }
+
     def generate_report(self, signals: List[ProcurementSignal]) -> str:
+        coverage = self.competitor_coverage(signals)
+        covered = sum(count > 0 for count in coverage.values())
         lines = [
             f"# AI 竞品与采购情报日报 - {self.date_text}",
             "",
@@ -289,9 +433,21 @@ class CompetitiveProcurementRadar:
             f"- 高可信信号：{sum(item.confidence == 'high' for item in signals)}",
             f"- 明确预算：{sum(item.budget_cny is not None for item in signals)}",
             f"- 采购阶段信号：{sum(item.procurement_stage != 'unknown' for item in signals)}",
+            f"- 重点竞品覆盖：{covered}/{len(self.competitors)}",
             "",
-            "## 十类信号覆盖",
+            "## 10 个重点竞品覆盖",
         ]
+        for index, competitor in enumerate(self.competitors, 1):
+            lines.extend(
+                [
+                    f"### {index}. {competitor['product']}（{competitor['vendor']}）",
+                    f"- 今日信号：{coverage[competitor['id']]} 条",
+                    f"- 定位：{competitor.get('positioning', '')}",
+                    f"- 与你的关系：{competitor.get('why_relevant', '')}",
+                    f"- 重点观察：{' / '.join(competitor.get('strategic_focus', []))}",
+                ]
+            )
+        lines.extend(["", "## 十类信号覆盖"])
         for key, category in self.config.get("categories", {}).items():
             count = sum(item.signal_category == key for item in signals)
             lines.append(f"- {category.get('label')}：{count} 条；可发现：{category.get('discoverable')}")
@@ -301,12 +457,14 @@ class CompetitiveProcurementRadar:
                 [
                     "",
                     f"### {index}. {item.title}",
+                    f"- 竞品：{item.competitor_product or '未归属'}",
                     f"- 类别：{item.category_label}",
                     f"- 分数/可信度：{item.score} / {item.confidence}",
                     f"- 来源：{item.source_name}（{item.evidence_level}）",
                     f"- 采购阶段：{item.procurement_stage}",
                     f"- 预算：{item.budget_text or '未识别'}",
                     f"- 可发现：{item.discoverable_insight}",
+                    f"- 与你的关系：{item.competitor_relevance or '作为行业或采购信号进入复盘'}",
                     f"- 建议动作：{item.recommended_action}",
                     f"- 链接：{item.source_url}",
                     f"- 摘要：{item.summary or '暂无摘要'}",
@@ -316,6 +474,7 @@ class CompetitiveProcurementRadar:
             [
                 "",
                 "## 使用原则",
+                "- 这 10 个竞品用于研究企业 AI 如何进入真实业务流程，不按模型榜单排序。",
                 "- 招聘、社媒和搜索趋势只能作为弱信号。",
                 "- 预算、采购阶段、官方公告和年报原文优先进入机会清单。",
                 "- 同一方向至少由两个独立来源验证后再形成结论。",
@@ -325,6 +484,8 @@ class CompetitiveProcurementRadar:
 
     def run(self, notion_parent_page_id: Optional[str], notion_token_env: str = "NOTION_TOKEN") -> Dict[str, Any]:
         signals = self.collect()
+        coverage = self.competitor_coverage(signals)
+        covered = sum(count > 0 for count in coverage.values())
         self.output_dir.mkdir(parents=True, exist_ok=True)
         with self.signals_path.open("w", encoding="utf-8") as f:
             for item in signals:
@@ -337,13 +498,27 @@ class CompetitiveProcurementRadar:
                 "high_confidence": sum(item.confidence == "high" for item in signals),
                 "with_budget": sum(item.budget_cny is not None for item in signals),
                 "procurement_leads": sum(item.procurement_stage != "unknown" for item in signals),
+                "watchlist_competitors": len(self.competitors),
+                "competitors_with_signals": covered,
+                "competitor_coverage_rate": round(covered / len(self.competitors), 4),
             },
+            "competitor_coverage": [
+                {
+                    "id": competitor["id"],
+                    "vendor": competitor["vendor"],
+                    "product": competitor["product"],
+                    "signal_count": coverage[competitor["id"]],
+                    "why_relevant": competitor.get("why_relevant", ""),
+                    "strategic_focus": competitor.get("strategic_focus", []),
+                }
+                for competitor in self.competitors
+            ],
             "paths": {
                 "signals": str(self.signals_path.relative_to(PROJECT_ROOT)),
                 "report": str(self.report_path.relative_to(PROJECT_ROOT)),
                 "summary": str(self.summary_path.relative_to(PROJECT_ROOT)),
             },
-            "top_signals": [asdict(item) for item in signals[: self.top_n]],
+            "top_signals": [asdict(item) for item in signals[: self.top_n],
             "notion": {"enabled": False},
         }
         if notion_parent_page_id:
@@ -369,6 +544,7 @@ class CompetitiveProcurementRadar:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="AI 竞品与采购情报雷达")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
+    parser.add_argument("--watchlist", default=str(DEFAULT_WATCHLIST_PATH))
     parser.add_argument("--date", default="today")
     parser.add_argument("--rsshub-base", default=os.getenv("RSSHUB_BASE_URL", "https://rsshub.app"))
     parser.add_argument("--limit-per-source", type=int, default=5)
@@ -387,6 +563,7 @@ def main() -> None:
     args = build_parser().parse_args()
     radar = CompetitiveProcurementRadar(
         config_path=Path(args.config),
+        watchlist_path=Path(args.watchlist),
         date_text=args.date,
         rsshub_base=args.rsshub_base,
         limit_per_source=args.limit_per_source,
