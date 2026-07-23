@@ -14,9 +14,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  collect-and-sync:
+  collect-sync-and-observe:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
@@ -37,44 +37,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run unit tests
-        run: python -m unittest discover -s tests -p "test_*.py"
+      - name: Run daily pipelines with operations logging
+        run: python scripts/run_daily_ops.py --date today
 
-      - name: Run general intelligence pipeline
-        run: |
-          RSSHUB_BASE="${RSSHUB_BASE_URL:-https://rsshub.app}"
-          args=(
-            --date today
-            --rsshub-base "$RSSHUB_BASE"
-            --skip-low-stability
-            --top-n 10
-            --notion-event-limit 20
-          )
-          if [[ -n "${NOTION_DATABASE_ID:-}" ]]; then
-            args+=(--notion-database-id "$NOTION_DATABASE_ID")
-          fi
-          if [[ -n "${NOTION_PARENT_PAGE_ID:-}" ]]; then
-            args+=(--notion-parent-page-id "$NOTION_PARENT_PAGE_ID")
-          fi
-          python src/pipeline.py "${args[@]}"
-
-      - name: Run competitive procurement radar
-        run: |
-          RSSHUB_BASE="${RSSHUB_BASE_URL:-https://rsshub.app}"
-          args=(
-            --date today
-            --rsshub-base "$RSSHUB_BASE"
-            --limit-per-source 5
-            --top-n 20
-          )
-          if [[ -n "${NOTION_COMPETITIVE_PARENT_PAGE_ID:-}" ]]; then
-            args+=(--notion-parent-page-id "$NOTION_COMPETITIVE_PARENT_PAGE_ID")
-          elif [[ -n "${NOTION_PARENT_PAGE_ID:-}" ]]; then
-            args+=(--notion-parent-page-id "$NOTION_PARENT_PAGE_ID")
-          fi
-          python src/competitive_procurement.py "${args[@]}"
-
-      - name: Upload daily intelligence artifacts
+      - name: Upload daily reports and operations logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -82,5 +48,6 @@ jobs:
           path: |
             自动化情报收集系统/data/reports/
             自动化情报收集系统/data/competitive_procurement/
+            自动化情报收集系统/data/run_logs/
           if-no-files-found: warn
           retention-days: 30
