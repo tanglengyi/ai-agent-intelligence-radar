@@ -6,6 +6,10 @@ data/*.sqlite3
 data/*.log
 data/page_snapshots/
 
+# Generated operations logs are stored in GitHub Actions Artifact
+data/run_logs/*
+!data/run_logs/README.md
+
 # Generated exports/reports can be regenerated locally
 exports/
 reports/
