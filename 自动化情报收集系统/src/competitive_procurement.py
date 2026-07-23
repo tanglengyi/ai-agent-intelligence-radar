@@ -1,9 +1,4 @@
-"""AI competitive and procurement intelligence radar.
-
-Collect ten signal families plus a focused competitor watchlist, extract
-procurement intent/budget, score signals, write JSONL + Markdown, and optionally
-publish the daily report to Notion.
-"""
+"""AI competitive and procurement intelligence radar."""
 
 from __future__ import annotations
 
@@ -58,8 +53,7 @@ class ProcurementSignal:
 
 
 def load_json(path: Path) -> Dict[str, Any]:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_env(path: Path = ENV_PATH) -> None:
@@ -73,28 +67,21 @@ def load_env(path: Path = ENV_PATH) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-def keyword_hits(text: str, keywords: Sequence[str]) -> List[str]:
-    lowered = text.lower()
-    hits: List[str] = []
-    seen: set[str] = set()
-    for keyword in keywords:
-        normalized = str(keyword).lower()
-        if normalized and normalized in lowered and normalized not in seen:
-            hits.append(str(keyword))
-            seen.add(normalized)
-    return hits
-
-
 def unique_strings(values: Sequence[str]) -> List[str]:
     result: List[str] = []
     seen: set[str] = set()
     for value in values:
         text = str(value).strip()
-        normalized = text.lower()
-        if text and normalized not in seen:
+        key = text.lower()
+        if text and key not in seen:
             result.append(text)
-            seen.add(normalized)
+            seen.add(key)
     return result
+
+
+def keyword_hits(text: str, keywords: Sequence[str]) -> List[str]:
+    lowered = text.lower()
+    return unique_strings([keyword for keyword in keywords if str(keyword).lower() in lowered])
 
 
 def validate_watchlist(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -103,10 +90,8 @@ def validate_watchlist(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     if len(competitors) != expected:
         raise ValueError(f"competitor watchlist requires {expected} entries, got {len(competitors)}")
     ids = [str(item.get("id", "")).strip() for item in competitors]
-    if any(not item_id for item_id in ids):
-        raise ValueError("every competitor requires a non-empty id")
-    if len(set(ids)) != len(ids):
-        raise ValueError("competitor ids must be unique")
+    if any(not item_id for item_id in ids) or len(set(ids)) != len(ids):
+        raise ValueError("competitor ids must be non-empty and unique")
     for item in competitors:
         for field in ("vendor", "product", "official_url", "news_feed_url"):
             if not str(item.get(field, "")).strip():
@@ -120,26 +105,15 @@ def match_competitor(
     forced_id: str = "",
 ) -> Optional[Dict[str, Any]]:
     if forced_id:
-        for competitor in competitors:
-            if competitor.get("id") == forced_id:
-                return competitor
+        return next((item for item in competitors if item.get("id") == forced_id), None)
     lowered = text.lower()
-    candidates: List[Tuple[int, Dict[str, Any]]] = []
-    for competitor in competitors:
-        aliases = unique_strings(
-            [
-                competitor.get("vendor", ""),
-                competitor.get("product", ""),
-                *competitor.get("aliases", []),
-            ]
-        )
-        matched = [alias for alias in aliases if alias.lower() in lowered]
-        if matched:
-            candidates.append((max(len(alias) for alias in matched), competitor))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda item: item[0], reverse=True)
-    return candidates[0][1]
+    matches: List[Tuple[int, Dict[str, Any]]] = []
+    for item in competitors:
+        aliases = unique_strings([item.get("vendor", ""), item.get("product", ""), *item.get("aliases", [])])
+        hit_lengths = [len(alias) for alias in aliases if alias.lower() in lowered]
+        if hit_lengths:
+            matches.append((max(hit_lengths), item))
+    return max(matches, key=lambda pair: pair[0])[1] if matches else None
 
 
 def detect_stage(text: str, rules: Dict[str, Sequence[str]]) -> str:
@@ -157,41 +131,25 @@ def extract_budget(text: str) -> Tuple[str, Optional[float]]:
         text,
     )
     if cny:
-        value = float(cny.group(1))
-        multiplier = {
-            "亿元": 100_000_000,
-            "亿": 100_000_000,
-            "万元": 10_000,
-            "万": 10_000,
-            "人民币元": 1,
-            "元": 1,
-        }[cny.group(2)]
-        return cny.group(0).strip(), value * multiplier
-
+        multipliers = {"亿元": 1e8, "亿": 1e8, "万元": 1e4, "万": 1e4, "人民币元": 1, "元": 1}
+        return cny.group(0).strip(), float(cny.group(1)) * multipliers[cny.group(2)]
     usd = re.search(r"(?:US\$|USD|\$)\s*(\d+(?:\.\d+)?)\s*(billion|million|bn|m)?", text, re.I)
     if usd:
-        value = float(usd.group(1))
-        unit = (usd.group(2) or "").lower()
-        multiplier = {
-            "billion": 1_000_000_000,
-            "bn": 1_000_000_000,
-            "million": 1_000_000,
-            "m": 1_000_000,
-        }.get(unit, 1)
-        return usd.group(0).strip(), value * multiplier * 7.0
+        multipliers = {"billion": 1e9, "bn": 1e9, "million": 1e6, "m": 1e6}
+        return usd.group(0).strip(), float(usd.group(1)) * multipliers.get((usd.group(2) or "").lower(), 1) * 7.0
     return "", None
 
 
 def evidence_score(level: str) -> int:
-    text = (level or "").lower()
-    if any(key in text for key in ["官方", "采购公告", "招标", "年报", "official"]):
-        return 5
-    if any(key in text for key in ["公司公告", "研究报告", "行业报告", "财报"]):
-        return 4
-    if any(key in text for key in ["媒体", "搜索索引", "招聘"]):
-        return 3
-    if any(key in text for key in ["社媒", "弱信号"]):
-        return 2
+    lowered = (level or "").lower()
+    for score, words in (
+        (5, ["官方", "采购公告", "招标", "年报", "official"]),
+        (4, ["公司公告", "研究报告", "行业报告", "财报"]),
+        (3, ["媒体", "搜索索引", "招聘"]),
+        (2, ["社媒", "弱信号"]),
+    ):
+        if any(word in lowered for word in words):
+            return score
     return 1
 
 
@@ -216,9 +174,7 @@ def confidence_level(score: float, evidence_level: str, stage: str, budget_cny: 
     evidence = evidence_score(evidence_level)
     if evidence >= 4 and score >= 7 and (stage != "unknown" or budget_cny is not None):
         return "high"
-    if evidence >= 3 and score >= 5.5:
-        return "medium"
-    return "low"
+    return "medium" if evidence >= 3 and score >= 5.5 else "low"
 
 
 class CompetitiveProcurementRadar:
@@ -237,11 +193,7 @@ class CompetitiveProcurementRadar:
         self.competitors = validate_watchlist(self.watchlist)
         self.base_sources = load_json(BASE_SOURCES_PATH)
         self.timezone = self.config.get("timezone", "Asia/Shanghai")
-        self.date_text = (
-            date_text
-            if date_text and date_text != "today"
-            else datetime.now(ZoneInfo(self.timezone)).strftime("%Y-%m-%d")
-        )
+        self.date_text = date_text if date_text != "today" else datetime.now(ZoneInfo(self.timezone)).strftime("%Y-%m-%d")
         self.rsshub_base = rsshub_base
         self.limit_per_source = limit_per_source
         self.max_sources = max_sources
@@ -252,64 +204,48 @@ class CompetitiveProcurementRadar:
         self.summary_path = self.output_dir / f"summary_{self.date_text}.json"
 
     def competitor_sources(self) -> List[Dict[str, Any]]:
-        sources: List[Dict[str, Any]] = []
-        for competitor in self.competitors:
-            sources.append(
-                {
-                    "name": f"{competitor['product']} 官方动态",
-                    "signal_category": "competitor_pricing",
-                    "evidence_level": "公司公告 / 官方站点索引",
-                    "source_type": "google_news_rss",
-                    "priority": 6,
-                    "language": competitor.get("language", "mixed"),
-                    "stability": "high",
-                    "url": competitor["official_url"],
-                    "feed_url": competitor["news_feed_url"],
-                    "monitor_keywords": unique_strings(
-                        [
-                            competitor["vendor"],
-                            competitor["product"],
-                            *competitor.get("aliases", []),
-                            *competitor.get("monitor_keywords", []),
-                        ]
-                    ),
-                    "require_keyword_match": True,
-                    "competitor_id": competitor["id"],
-                }
-            )
-        return sources
+        return [
+            {
+                "name": f"{item['product']} 官方动态",
+                "signal_category": "competitor_pricing",
+                "evidence_level": "公司公告 / 官方站点索引",
+                "source_type": "google_news_rss",
+                "priority": 6,
+                "language": item.get("language", "mixed"),
+                "stability": "high",
+                "url": item["official_url"],
+                "feed_url": item["news_feed_url"],
+                "monitor_keywords": unique_strings(
+                    [item["vendor"], item["product"], *item.get("aliases", []), *item.get("monitor_keywords", [])]
+                ),
+                "require_keyword_match": True,
+                "competitor_id": item["id"],
+            }
+            for item in self.competitors
+        ]
 
     def resolve_sources(self) -> List[Dict[str, Any]]:
         source_map = {item.get("name"): item for item in self.base_sources.get("sources", [])}
-        resolved: List[Dict[str, Any]] = []
+        sources: List[Dict[str, Any]] = []
         for ref in self.config.get("source_refs", []):
             base = source_map.get(ref.get("name"))
             if not base:
                 print(f"[WARN] source_ref not found: {ref.get('name')}", file=sys.stderr)
                 continue
-            merged = dict(base)
-            merged.update(ref)
-            resolved.append(merged)
-        resolved.extend(dict(item) for item in self.config.get("sources", []))
-        resolved.extend(self.competitor_sources())
+            sources.append({**base, **ref})
+        sources.extend(dict(item) for item in self.config.get("sources", []))
+        sources.extend(self.competitor_sources())
         deduplicated: Dict[str, Dict[str, Any]] = {}
-        for source in resolved:
+        for source in sources:
             key = source_feed_url(source, self.rsshub_base) or source.get("url") or source.get("name")
             deduplicated[str(key)] = source
-        sources = list(deduplicated.values())
-        sources.sort(key=lambda item: int(item.get("priority", 1)), reverse=True)
-        return sources[: self.max_sources] if self.max_sources else sources
+        result = sorted(deduplicated.values(), key=lambda item: int(item.get("priority", 1)), reverse=True)
+        return result[: self.max_sources] if self.max_sources else result
 
     def tracked_company_keywords(self) -> List[str]:
-        values: List[str] = list(self.config.get("tracked_companies", []))
-        for competitor in self.competitors:
-            values.extend(
-                [
-                    competitor.get("vendor", ""),
-                    competitor.get("product", ""),
-                    *competitor.get("aliases", []),
-                ]
-            )
+        values = list(self.config.get("tracked_companies", []))
+        for item in self.competitors:
+            values.extend([item.get("vendor", ""), item.get("product", ""), *item.get("aliases", [])])
         return unique_strings(values)
 
     def analyze(self, source: Dict[str, Any], feed_url: str, raw: Dict[str, Optional[str]]) -> Optional[ProcurementSignal]:
@@ -321,24 +257,14 @@ class CompetitiveProcurementRadar:
         summary = raw.get("summary") or ""
         text = re.sub(r"\s+", " ", f"{title} {summary}").strip()
         competitor = match_competitor(text, self.competitors, source.get("competitor_id", ""))
-        competitor_keywords: List[str] = []
+        competitor_keywords = []
         if competitor:
             competitor_keywords = unique_strings(
-                [
-                    competitor.get("vendor", ""),
-                    competitor.get("product", ""),
-                    *competitor.get("aliases", []),
-                    *competitor.get("monitor_keywords", []),
-                ]
+                [competitor.get("vendor", ""), competitor.get("product", ""), *competitor.get("aliases", []), *competitor.get("monitor_keywords", [])]
             )
         hits = keyword_hits(
             text,
-            [
-                *self.config.get("global_ai_keywords", []),
-                *category.get("keywords", []),
-                *source.get("monitor_keywords", []),
-                *competitor_keywords,
-            ],
+            [*self.config.get("global_ai_keywords", []), *category.get("keywords", []), *source.get("monitor_keywords", []), *competitor_keywords],
         )
         if not hits and source.get("require_keyword_match", True):
             return None
@@ -406,11 +332,7 @@ class CompetitiveProcurementRadar:
         seen: set[Tuple[str, str, str]] = set()
         result: List[ProcurementSignal] = []
         for signal in signals:
-            key = (
-                re.sub(r"\W+", "", signal.title.lower())[:120],
-                signal.signal_category,
-                signal.competitor_id,
-            )
+            key = (re.sub(r"\W+", "", signal.title.lower())[:120], signal.signal_category, signal.competitor_id)
             if key not in seen:
                 seen.add(key)
                 result.append(signal)
@@ -418,8 +340,8 @@ class CompetitiveProcurementRadar:
 
     def competitor_coverage(self, signals: Sequence[ProcurementSignal]) -> Dict[str, int]:
         return {
-            competitor["id"]: sum(signal.competitor_id == competitor["id"] for signal in signals)
-            for competitor in self.competitors
+            item["id"]: sum(signal.competitor_id == item["id"] for signal in signals)
+            for item in self.competitors
         }
 
     def generate_report(self, signals: List[ProcurementSignal]) -> str:
@@ -437,14 +359,14 @@ class CompetitiveProcurementRadar:
             "",
             "## 10 个重点竞品覆盖",
         ]
-        for index, competitor in enumerate(self.competitors, 1):
+        for index, item in enumerate(self.competitors, 1):
             lines.extend(
                 [
-                    f"### {index}. {competitor['product']}（{competitor['vendor']}）",
-                    f"- 今日信号：{coverage[competitor['id']]} 条",
-                    f"- 定位：{competitor.get('positioning', '')}",
-                    f"- 与你的关系：{competitor.get('why_relevant', '')}",
-                    f"- 重点观察：{' / '.join(competitor.get('strategic_focus', []))}",
+                    f"### {index}. {item['product']}（{item['vendor']}）",
+                    f"- 今日信号：{coverage[item['id']]} 条",
+                    f"- 定位：{item.get('positioning', '')}",
+                    f"- 与你的关系：{item.get('why_relevant', '')}",
+                    f"- 重点观察：{' / '.join(item.get('strategic_focus', []))}",
                 ]
             )
         lines.extend(["", "## 十类信号覆盖"])
@@ -504,21 +426,21 @@ class CompetitiveProcurementRadar:
             },
             "competitor_coverage": [
                 {
-                    "id": competitor["id"],
-                    "vendor": competitor["vendor"],
-                    "product": competitor["product"],
-                    "signal_count": coverage[competitor["id"]],
-                    "why_relevant": competitor.get("why_relevant", ""),
-                    "strategic_focus": competitor.get("strategic_focus", []),
+                    "id": item["id"],
+                    "vendor": item["vendor"],
+                    "product": item["product"],
+                    "signal_count": coverage[item["id"]],
+                    "why_relevant": item.get("why_relevant", ""),
+                    "strategic_focus": item.get("strategic_focus", []),
                 }
-                for competitor in self.competitors
+                for item in self.competitors
             ],
             "paths": {
                 "signals": str(self.signals_path.relative_to(PROJECT_ROOT)),
                 "report": str(self.report_path.relative_to(PROJECT_ROOT)),
                 "summary": str(self.summary_path.relative_to(PROJECT_ROOT)),
             },
-            "top_signals": [asdict(item) for item in signals[: self.top_n],
+            "top_signals": [asdict(item) for item in signals[: self.top_n]],
             "notion": {"enabled": False},
         }
         if notion_parent_page_id:
@@ -570,13 +492,7 @@ def main() -> None:
         max_sources=args.max_sources,
         top_n=args.top_n,
     )
-    print(
-        json.dumps(
-            radar.run(args.notion_parent_page_id, args.notion_token_env),
-            ensure_ascii=False,
-            indent=2,
-        )
-    )
+    print(json.dumps(radar.run(args.notion_parent_page_id, args.notion_token_env), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
