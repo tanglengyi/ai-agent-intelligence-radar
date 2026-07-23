@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "timezone": "Asia/Shanghai",
+  "purpose": "把 AI/Agent 外部信息转化为竞品判断、采购机会、客户账户画像和产品需求输入",
+  "sleep_seconds": 0.2,
+  "global_ai_keywords": [
+    "AI",
+    "人工智能",
+    "大模型",
+    "智能体",
+    "Agent",
+    "LLM",
+    "RAG",
+    "知识库",
+    "模型",
+    "算力",
+    "推理"
+  ],
+  "tracked_companies": [
+    "OpenAI",
+    "Anthropic",
+    "Google",
+    "Microsoft",
+    "AWS",
+    "NVIDIA",
+    "阿里云",
+    "腾讯云",
+    "火山引擎",
+    "百度智能云",
+    "智谱",
+    "月之暗面",
+    "Dify",
+    "Coze",
+    "LangChain",
+    "OpenRouter"
+  ],
+  "procurement_stage_keywords": {
+    "award": ["中标公告", "成交公告", "中标结果", "合同公告", "contract award", "awarded"],
+    "tender": ["招标公告", "公开招标", "竞争性磋商", "询价公告", "RFP", "request for proposal", "tender"],
+    "intent": ["采购意向", "预算公开", "拟采购", "采购计划", "procurement plan", "budget request"],
+    "partnership": ["战略合作", "合作协议", "生态合作", "伙伴计划", "partnership", "alliance"]
+  },
+  "categories": {
+    "policy_regulation": {
+      "label": "政策和监管变化",
+      "discoverable": "强制性需求、合规预算、行业准入门槛",
+      "weight": 5,
+      "keywords": ["监管", "政策", "办法", "条例", "标准", "备案", "合规", "AI Act", "regulation", "governance"],
+      "recommended_action": "提取强制条款、实施日期和受影响行业，转化为合规能力清单"
+    },
+    "industry_research": {
+      "label": "行业研究报告",
+      "discoverable": "市场规模、增长趋势、行业结构和细分赛道",
+      "weight": 4,
+      "keywords": ["研究报告", "白皮书", "市场规模", "增长率", "行业报告", "forecast", "market size", "CAGR", "AI Index"],
+      "recommended_action": "记录市场规模口径、增长率、样本范围和机构假设，避免只摘结论"
+    },
+    "competitor_pricing": {
+      "label": "竞品官网和报价",
+      "discoverable": "功能边界、商业模式、价格区间、套餐变化",
+      "weight": 5,
+      "keywords": ["pricing", "价格", "套餐", "enterprise", "API price", "token", "订阅", "免费额度", "SLA", "限流"],
+      "recommended_action": "更新竞品功能-价格矩阵，标记涨价、降价、打包和企业版变化"
+    },
+    "hiring_signal": {
+      "label": "招聘信息",
+      "discoverable": "企业正在建设的能力、组织投入方向、技术栈和区域布局",
+      "weight": 3,
+      "keywords": ["招聘", "岗位", "JD", "hiring", "product manager", "算法工程师", "Agent", "大模型", "AI合规"],
+      "recommended_action": "把岗位职责拆成能力地图，并与竞品发布和采购项目交叉验证"
+    },
+    "tender_procurement": {
+      "label": "招标采购平台",
+      "discoverable": "真实预算、采购标准、项目密度、买方单位和中标供应商",
+      "weight": 5,
+      "keywords": ["招标", "中标", "采购", "采购意向", "成交", "预算", "合同", "项目编号", "RFP", "tender", "bid", "award"],
+      "recommended_action": "提取买方、预算、采购阶段、评分标准和供应商，进入销售机会清单"
+    },
+    "conference_exhibition": {
+      "label": "行业会议和展会",
+      "discoverable": "热点方向、供应商格局、客户关注点和生态合作机会",
+      "weight": 3,
+      "keywords": ["大会", "峰会", "展会", "论坛", "conference", "summit", "expo", "参展", "演讲", "议程"],
+      "recommended_action": "统计高频议题、参展厂商和客户行业，识别下一阶段市场教育重点"
+    },
+    "annual_report": {
+      "label": "客户公开年报",
+      "discoverable": "战略方向、数字化投入、经营压力、资本开支和采购倾向",
+      "weight": 5,
+      "keywords": ["年报", "年度报告", "财报", "资本开支", "数字化投入", "AI战略", "annual report", "capex", "digital transformation"],
+      "recommended_action": "提取经营压力、数字化预算和管理层表述，形成目标客户账户画像"
+    },
+    "search_social_trend": {
+      "label": "搜索趋势和社交内容",
+      "discoverable": "需求热度、用户讨论焦点、抱怨点和早期趋势",
+      "weight": 2,
+      "keywords": ["热度", "趋势", "讨论", "用户反馈", "搜索量", "爆发", "trend", "discussion", "complaint"],
+      "recommended_action": "只作为早鸟信号，要求后续用官网、采购、招聘或客户材料验证"
+    },
+    "channel_partner": {
+      "label": "渠道和合作伙伴",
+      "discoverable": "一线客户需求、区域差异、渠道政策和生态分工",
+      "weight": 4,
+      "keywords": ["合作伙伴", "渠道", "代理商", "生态合作", "战略合作", "伙伴计划", "partner", "reseller", "alliance"],
+      "recommended_action": "记录合作对象、区域、行业和交付边界，判断渠道补位能力"
+    },
+    "technology_development": {
+      "label": "技术发展",
+      "discoverable": "原来做不了、现在可以做的场景，以及成本和交付边界变化",
+      "weight": 4,
+      "keywords": ["release", "开源", "模型", "Agent", "推理", "多模态", "benchmark", "tool use", "computer use", "MCP", "成本下降"],
+      "recommended_action": "把技术变化翻译成新增场景、成本变化、风险和产品依赖"
+    }
+  },
+  "source_refs": [
+    {"name": "工信部政策公告", "signal_category": "policy_regulation", "require_keyword_match": true},
+    {"name": "网信办", "signal_category": "policy_regulation", "require_keyword_match": true},
+    {"name": "国家标准委", "signal_category": "policy_regulation", "require_keyword_match": true},
+    {"name": "Stanford HAI", "signal_category": "industry_research", "require_keyword_match": true},
+    {"name": "OpenAI News", "signal_category": "competitor_pricing", "require_keyword_match": true},
+    {"name": "OpenRouter Announcements", "signal_category": "competitor_pricing", "require_keyword_match": true},
+    {"name": "Boss 直聘 AI Agent 岗位", "signal_category": "hiring_signal", "require_keyword_match": true},
+    {"name": "Boss 直聘 AI 合规岗", "signal_category": "hiring_signal", "require_keyword_match": true},
+    {"name": "LinkedIn AI Agent Jobs", "signal_category": "hiring_signal", "require_keyword_match": true},
+    {"name": "OpenAI X", "signal_category": "search_social_trend", "require_keyword_match": true},
+    {"name": "OpenAI Agents SDK GitHub Releases", "signal_category": "technology_development", "require_keyword_match": true},
+    {"name": "LangGraph GitHub Releases", "signal_category": "technology_development", "require_keyword_match": true},
+    {"name": "vLLM GitHub Releases", "signal_category": "technology_development", "require_keyword_match": true},
+    {"name": "LiteLLM GitHub Releases", "signal_category": "technology_development", "require_keyword_match": true}
+  ],
+  "sources": [
+    {
+      "name": "中国政府采购网 AI 项目",
+      "signal_category": "tender_procurement",
+      "evidence_level": "官方采购公告 / 搜索索引",
+      "source_type": "google_news_rss",
+      "priority": 5,
+      "language": "zh",
+      "stability": "high",
+      "url": "https://www.ccgp.gov.cn/",
+      "feed_url": "https://news.google.com/rss/search?q=site%3Accgp.gov.cn%20%28%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD%20OR%20%E5%A4%A7%E6%A8%A1%E5%9E%8B%20OR%20%E6%99%BA%E8%83%BD%E4%BD%93%20OR%20%E7%9F%A5%E8%AF%86%E5%BA%93%29%20%28%E9%87%87%E8%B4%AD%E5%85%AC%E5%91%8A%20OR%20%E4%B8%AD%E6%A0%87%E5%85%AC%E5%91%8A%20OR%20%E9%87%87%E8%B4%AD%E6%84%8F%E5%90%91%29&hl=zh-CN&gl=CN&ceid=CN%3Azh-Hans",
+      "monitor_keywords": ["采购公告", "中标公告", "采购意向", "预算", "人工智能"]
+    },
+    {
+      "name": "AI 招标与采购搜索",
+      "signal_category": "tender_procurement",
+      "evidence_level": "采购公告 / 搜索索引",
+      "source_type": "google_news_rss",
+      "priority": 5,
+      "language": "zh",
+      "stability": "high",
+      "url": "https://news.google.com/",
+      "feed_url": "https://news.google.com/rss/search?q=%28%22%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD%22%20OR%20%22%E5%A4%A7%E6%A8%A1%E5%9E%8B%22%20OR%20%22%E6%99%BA%E8%83%BD%E4%BD%93%22%29%20%28%E6%8B%9B%E6%A0%87%20OR%20%E4%B8%AD%E6%A0%87%20OR%20%E9%87%87%E8%B4%AD%20OR%20%E9%A2%84%E7%AE%97%20OR%20%E6%88%90%E4%BA%A4%29&hl=zh-CN&gl=CN&ceid=CN%3Azh-Hans",
+      "monitor_keywords": ["人工智能", "大模型", "智能体", "招标", "中标", "采购", "预算"]
+    },
+    {
+      "name": "AI 行业研究报告搜索",
+      "signal_category": "industry_research",
+      "evidence_level": "研究报告 / 搜索索引",
+      "source_type": "google_news_rss",
+      "priority": 4,
+      "language": "mixed",
+      "stability": "high",
+      "url": "https://news.google.com/",
+      "feed_url": "https://news.google.com/rss/search?q=%28%22AI%20Agent%22%20OR%20%E6%99%BA%E8%83%BD%E4%BD%93%20OR%20%E5%A4%A7%E6%A8%A1%E5%9E%8B%29%20%28%E8%A1%8C%E4%B8%9A%E6%8A%A5%E5%91%8A%20OR%20%E7%99%BD%E7%9A%AE%E4%B9%A6%20OR%20%E5%B8%82%E5%9C%BA%E8%A7%84%E6%A8%A1%20OR%20CAGR%20OR%20market%20size%29&hl=zh-CN&gl=CN&ceid=CN%3Azh-Hans",
+      "monitor_keywords": ["行业报告", "白皮书", "市场规模", "CAGR", "AI Agent"]
+    },
+    {
+      "name": "AI 竞品价格与套餐变化",
+      "signal_category": "competitor_pricing",
+      "evidence_level": "公司公告 / 搜索索引",
+      "source_type": "google_news_rss",
+      "priority": 5,
+      "language": "mixed",
+      "stability": "high",
+      "url": "https://news.google.com/",
+      "feed_url": "https://news.google.com/rss/search?q=%28OpenAI%20OR%20Anthropic%20OR%20Gemini%20OR%20Dify%20OR%20Coze%20OR%20LangChain%20OR%20OpenRouter%29%20%28pricing%20OR%20price%20OR%20%E4%BB%B7%E6%A0%BC%20OR%20%E5%A5%97%E9%A4%90%20OR%20enterprise%20OR%20API%29&hl=zh-CN&gl=CN&ceid=CN%3Azh-Hans",
+      "monitor_keywords": ["pricing", "price", "价格", "套餐", "enterprise", "API"]
+    },
+    {
+      "name": "AI 行业大会与展会",
+      "signal_category": "conference_exhibition",
+      "evidence_level": "会议公开信息 / 搜索索引",
+      "source_type": "google_news_rss",
+      "priority": 3,
+      "language": "zh",
+      "stability": "high",
+      "url": "https://news.google.com/",
+      "feed_url": "https://news.google.com/rss/search?q=%28%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD%20OR%20%E5%A4%A7%E6%A8%A1%E5%9E%8B%20OR%20%E6%99%BA%E8%83%BD%E4%BD%93%29%20%28%E5%A4%A7%E4%BC%9A%20OR%20%E5%B3%B0%E4%BC%9A%20OR%20%E5%B1%95%E4%BC%9A%20OR%20%E8%AE%BA%E5%9D%9B%20OR%20%E5%8F%82%E5%B1%95%29&hl=zh-CN&gl=CN&ceid=CN%3Azh-Hans",
+      "monitor_keywords": ["大会", "峰会", "展会", "论坛", "人工智能", "智能体"]
+    },
+    {
+      "name": "客户年报与 AI 投入",
+      "signal_category": "annual_report",
+      "evidence_level": "年报 / 搜索索引",
+      "source_type": "google_news_rss",
+      "priority": 5,
+      "language": "zh",
+      "stability": "high",
+      "url": "https://www.cninfo.com.cn/",
+      "feed_url": "https://news.google.com/rss/search?q=%28%E5%B9%B4%E6%8A%A5%20OR%20%E5%B9%B4%E5%BA%A6%E6%8A%A5%E5%91%8A%20OR%20%E8%B4%A2%E6%8A%A5%29%20%28%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD%20OR%20%E5%A4%A7%E6%A8%A1%E5%9E%8B%20OR%20%E6%95%B0%E5%AD%97%E5%8C%96%E6%8A%95%E5%85%A5%20OR%20%E6%99%BA%E8%83%BD%E5%8C%96%20OR%20%E7%AE%97%E5%8A%9B%29&hl=zh-CN&gl=CN&ceid=CN%3Azh-Hans",
+      "monitor_keywords": ["年报", "年度报告", "财报", "人工智能", "数字化投入", "资本开支"]
+    },
+    {
+      "name": "AI 渠道与生态合作",
+      "signal_category": "channel_partner",
+      "evidence_level": "公司公告 / 搜索索引",
+      "source_type": "google_news_rss",
+      "priority": 4,
+      "language": "zh",
+      "stability": "high",
+      "url": "https://news.google.com/",
+      "feed_url": "https://news.google.com/rss/search?q=%28%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD%20OR%20%E5%A4%A7%E6%A8%A1%E5%9E%8B%20OR%20%E6%99%BA%E8%83%BD%E4%BD%93%29%20%28%E5%90%88%E4%BD%9C%E4%BC%99%E4%BC%B4%20OR%20%E6%B8%A0%E9%81%93%20OR%20%E7%94%9F%E6%80%81%E5%90%88%E4%BD%9C%20OR%20%E6%88%98%E7%95%A5%E5%90%88%E4%BD%9C%20OR%20%E4%BC%99%E4%BC%B4%E8%AE%A1%E5%88%92%29&hl=zh-CN&gl=CN&ceid=CN%3Azh-Hans",
+      "monitor_keywords": ["合作伙伴", "渠道", "生态合作", "战略合作", "人工智能"]
+    },
+    {
+      "name": "海外 AI 企业采购与 RFP",
+      "signal_category": "tender_procurement",
+      "evidence_level": "公开采购 / 搜索索引",
+      "source_type": "google_news_rss",
+      "priority": 4,
+      "language": "en",
+      "stability": "high",
+      "url": "https://news.google.com/",
+      "feed_url": "https://news.google.com/rss/search?q=%28%22AI%20agent%22%20OR%20%22generative%20AI%22%29%20%28RFP%20OR%20tender%20OR%20procurement%20OR%20contract%20award%20OR%20budget%29&hl=en-US&gl=US&ceid=US%3Aen",
+      "monitor_keywords": ["AI agent", "generative AI", "RFP", "tender", "procurement", "contract award", "budget"]
+    },
+    {
+      "name": "AI 搜索与社交需求热度",
+      "signal_category": "search_social_trend",
+      "evidence_level": "搜索趋势弱信号",
+      "source_type": "google_news_rss",
+      "priority": 2,
+      "language": "mixed",
+      "stability": "high",
+      "url": "https://news.google.com/",
+      "feed_url": "https://news.google.com/rss/search?q=%28AI%20Agent%20OR%20%E6%99%BA%E8%83%BD%E4%BD%93%20OR%20%E4%BC%81%E4%B8%9A%E7%9F%A5%E8%AF%86%E5%BA%93%29%20%28%E8%B6%8B%E5%8A%BF%20OR%20%E7%83%AD%E5%BA%A6%20OR%20%E7%94%A8%E6%88%B7%E5%8F%8D%E9%A6%88%20OR%20discussion%20OR%20complaint%29&hl=zh-CN&gl=CN&ceid=CN%3Azh-Hans",
+      "monitor_keywords": ["趋势", "热度", "用户反馈", "discussion", "complaint", "AI Agent"]
+    }
+  ]
+}
